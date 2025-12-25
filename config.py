@@ -9,7 +9,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'bws61kwyLrTm1gYVEcaOyf8ZF5Ys1AvI'
     
     # 登录密码（生产环境应使用环境变量）
-    PASSWORD = os.environ.get('FILESHARING_PASSWORD') or 'KEpIgqjAuKPit1Tf'
+    PASSWORD = os.environ.get('FILESHARING_PASSWORD') or '13681129585'
     
     # 上传文件配置
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
