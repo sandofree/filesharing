@@ -1,0 +1,10 @@
+[project]
+name = "filesharing"
+version = "0.5.0"
+description = "简单的文件共享Flask应用，支持密码登录、文件上传和下载"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flask",
+    "flask-session"
+]

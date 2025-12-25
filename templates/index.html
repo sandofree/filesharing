@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件共享 - 主页</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">📁 文件与文本共享</h1>
+                <div class="header-actions">
+                    <span class="welcome-text">欢迎回来</span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">
+                        退出
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="main-content">
+            <!-- 上传区域 -->
+            <section class="upload-section">
+                <div class="card">
+                    <h2 class="section-title">上传文件</h2>
+                    <form id="uploadForm" class="upload-form">
+                        <div class="upload-area" id="uploadArea">
+                            <input 
+                                type="file" 
+                                id="fileInput" 
+                                name="file" 
+                                class="file-input"
+                            >
+                            <div class="upload-content">
+                                <div class="upload-icon">📤</div>
+                                <p class="upload-text">点击或拖拽文件到此处上传</p>
+                                <p class="upload-hint">支持最大 100MB 的文件</p>
+                            </div>
+                        </div>
+                        <div id="selectedFile" class="selected-file" style="display: none;">
+                            <span id="fileName"></span>
+                            <button type="button" class="btn-remove" id="removeFile">✕</button>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
+                            上传文件
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 文件列表区域 -->
+            <section class="files-section">
+                <div class="card">
+                    <div class="section-header">
+                        <h2 class="section-title">文件列表</h2>
+                        <button class="btn btn-secondary btn-sm" id="refreshBtn">
+                            🔄 刷新
+                        </button>
+                    </div>
+                    
+                    <div id="fileList" class="file-list">
+                        {% if files %}
+                            {% for file in files %}
+                            <div class="file-item" data-filename="{{ file.name }}">
+                                <div class="file-icon">📄</div>
+                                <div class="file-info">
+                                    <div class="file-name">{{ file.name }}</div>
+                                    <div class="file-meta">
+                                        <span class="file-size">{{ file.size_str }}</span>
+                                        <span class="file-time">{{ file.mtime_str }}</span>
+                                    </div>
+                                </div>
+                                <div class="file-actions">
+                                    <a href="{{ url_for('download_file', filename=file.name) }}" 
+                                       class="btn btn-download btn-sm"
+                                       title="下载">
+                                        ⬇️
+                                    </a>
+                                    <button class="btn btn-delete btn-sm"
+                                            onclick="deleteFile('{{ file.name }}')"
+                                            title="删除">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-icon">📭</div>
+                                <p>暂无文件</p>
+                                <p class="empty-hint">上传文件后即可在此处查看</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 文本共享区域 -->
+            <section class="text-share-section">
+                <div class="card">
+                    <h2 class="section-title">共享文本</h2>
+                    <form id="textShareForm" class="text-share-form">
+                        <div class="form-group">
+                            <textarea
+                                id="textContent"
+                                name="content"
+                                class="form-textarea"
+                                rows="10"
+                                placeholder="输入要共享的文本内容"
+                                required
+                            ></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="shareTextBtn">
+                            📝 共享文本
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="toast" class="toast"></div>
+
+    <!-- 加载遮罩 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>处理中...</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
