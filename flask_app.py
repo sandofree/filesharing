@@ -3,11 +3,13 @@
 支持密码登录、文件上传、下载和删除
 支持文本共享功能
 """
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, flash, jsonify
-from flask_session import Session
-from werkzeug.utils import secure_filename
-import os
 from datetime import datetime
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for, send_from_directory, session
+from flask_session import Session
+import os
+import re
+from unicodedata import normalize
+
 from config import Config
 
 app = Flask(__name__)
@@ -23,6 +25,28 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 TEXT_SHARE_FILE = os.path.join(os.path.dirname(__file__), 'shared_texts', 'TEXT_SHARE_FILE.txt')
 os.makedirs(os.path.dirname(TEXT_SHARE_FILE), exist_ok=True)
 
+
+def secure_filename(filename):
+    """
+    Secure a filename, allowing Unicode characters.
+
+    This function attempts to keep letters, numbers, and some basic punctuation,
+    while removing path traversals and other unsafe characters.
+    """
+    # Normalize to decompose Unicode characters into base + diacritics
+    filename = normalize('NFKD', filename)
+    
+    # Remove path traversal characters (like '..' and '/')
+    filename = filename.replace('../', '').replace('..\\', '').replace('/', '_').replace('\\', '_')
+    
+    # Allow letters (including Chinese characters), numbers, dots, and underscores
+    # Use regex to keep only safe characters. '\w' includes many Unicode letters.
+    filename = re.sub(r'[^\w._-]', '_', filename)
+    
+    # Optional: collapse repeated underscores
+    filename = re.sub(r'_{2,}', '_', filename)
+
+    return filename
 
 def get_file_info(filepath):
     """获取文件信息"""
@@ -69,6 +93,7 @@ def get_shared_text():
         with open(TEXT_SHARE_FILE, 'r', encoding='utf-8') as f:
             return f.read()
     return ''
+
 
 @app.route('/')
 def index():
