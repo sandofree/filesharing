@@ -34,8 +34,14 @@ function initMainPage() {
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
     const removeFileBtn = document.getElementById('removeFile');
-    const refreshBtn = document.getElementById('refreshBtn');
     const textShareForm = document.getElementById('textShareForm');
+    const copyTextBtn = document.getElementById('copyTextBtn');
+    const textContent = document.getElementById('textContent');
+
+    // textarea获得焦点时自动选中所有文本
+    textContent.addEventListener('focus', function () {
+        this.select();
+    });
 
     // 点击上传区域触发文件选择
     uploadArea.addEventListener('click', function () {
@@ -83,6 +89,11 @@ function initMainPage() {
     textShareForm.addEventListener('submit', function (e) {
         e.preventDefault();
         shareText();
+    });
+
+    // 复制文本按钮点击事件
+    copyTextBtn.addEventListener('click', function () {
+        copyText();
     });
 
     // 加载当前共享的文本
@@ -304,6 +315,36 @@ function loadSharedText() {
         })
         .catch(error => {
             console.error('Load text error:', error);
+        });
+}
+
+// 复制文本到剪贴板
+function copyText() {
+    const contentInput = document.getElementById('textContent');
+    const content = contentInput.value.trim();
+
+    if (!content) {
+        showToast('文本内容为空，无法复制', 'error');
+        return;
+    }
+
+    // 使用Clipboard API复制文本
+    navigator.clipboard.writeText(content)
+        .then(() => {
+            showToast('文本已复制到剪贴板', 'success');
+        })
+        .catch(err => {
+            // 如果Clipboard API不可用，使用传统方法
+            contentInput.select();
+            contentInput.setSelectionRange(0, contentInput.value.length);
+
+            try {
+                document.execCommand('copy');
+                showToast('文本已复制到剪贴板', 'success');
+            } catch (err) {
+                showToast('复制失败，请手动复制', 'error');
+                console.error('Copy error:', err);
+            }
         });
 }
 

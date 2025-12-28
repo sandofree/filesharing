@@ -4,11 +4,12 @@
 支持文本共享功能
 """
 from datetime import datetime
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for, send_from_directory, session
+from flask import Flask, flash, jsonify, make_response, redirect, render_template, request, url_for, send_from_directory, session
 from flask_session import Session
 import os
 import re
 from unicodedata import normalize
+from urllib.parse import quote
 
 from config import Config
 
@@ -170,12 +171,19 @@ def download_file(filename):
     if 'logged_in' not in session:
         flash('请先登录！', 'error')
         return redirect(url_for('login'))
-    
-    return send_from_directory(
-        app.config['UPLOAD_FOLDER'],
-        filename,
-        as_attachment=True
-    )
+
+    # 安全检查
+    upload_folder = app.config['UPLOAD_FOLDER']
+    file_path = os.path.join(upload_folder, filename)
+    if not os.path.exists(file_path):
+        return "File not found", 404
+
+    # 设置Content-Disposition，用%20替换空格并用UTF-8编码，保证浏览器能正确识别
+    actual_filename = secure_filename(filename)
+    encoded_filename = quote(actual_filename.encode('utf-8'))
+    response = make_response(send_from_directory(upload_folder, actual_filename, as_attachment=True))
+    response.headers["Content-Disposition"] = f"attachment; filename*=utf-8''{encoded_filename}"
+    return response
 
 
 @app.route('/delete/<filename>', methods=['POST'])

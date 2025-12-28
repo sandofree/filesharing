@@ -651,6 +651,15 @@ body {
     box-shadow: var(--shadow-hover);
 }
 
+.button-group {
+    display: flex;
+    gap: 12px;
+}
+
+.button-group .btn {
+    flex: 1;
+}
+
 .btn-full {
     width: 100%;
 }
