@@ -14,42 +14,7 @@
             <!-- 上传区域 -->
             <section class="upload-section">
                 <div class="card">
-                    <h2 class="section-title">上传文件</h2>
-                    <form id="uploadForm" class="upload-form">
-                        <div class="upload-area" id="uploadArea">
-                            <input 
-                                type="file" 
-                                id="fileInput" 
-                                name="file" 
-                                class="file-input"
-                            >
-                            <div class="upload-content">
-                                <div class="upload-icon">📤</div>
-                                <p class="upload-text">点击或拖拽文件到此处上传</p>
-                                <p class="upload-hint">支持最大 100MB 的文件</p>
-                            </div>
-                        </div>
-                        <div id="selectedFile" class="selected-file" style="display: none;">
-                            <span id="fileName"></span>
-                            <button type="button" class="btn-remove" id="removeFile">✕</button>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
-                            上传文件
-                        </button>
-                    </form>
-                </div>
-            </section>
-
-            <!-- 文件列表区域 -->
-            <section class="files-section">
-                <div class="card">
-                    <div class="section-header">
-                        <h2 class="section-title">文件列表</h2>
-                        <button class="btn btn-secondary btn-sm" id="refreshBtn">
-                            🔄 刷新
-                        </button>
-                    </div>
-                    
+                    <!--h2 class="section-title">共享文件</h2-->
                     <div id="fileList" class="file-list">
                         {% if files %}
                             {% for file in files %}
@@ -76,32 +41,46 @@
                                 </div>
                             </div>
                             {% endfor %}
-                        {% else %}
-                            <div class="empty-state">
-                                <div class="empty-icon">📭</div>
-                                <p>暂无文件</p>
-                                <p class="empty-hint">上传文件后即可在此处查看</p>
-                            </div>
-                        {% endif %}
+                        {% endif %}                    
                     </div>
+
+                    <form id="uploadForm" class="upload-form">
+                        <div class="upload-area" id="uploadArea">
+                            <input 
+                                type="file" 
+                                id="fileInput" 
+                                name="file" 
+                                class="file-input"
+                            >
+                            <div class="upload-content">
+                                <div class="upload-icon">📤</div>
+                                <p class="upload-hint">点击或拖拽文件到此处上传(最大100MB)</p>
+                            </div>
+                        </div>
+                        <div id="selectedFile" class="selected-file" style="display: none;">
+                            <span id="fileName"></span>
+                            <button type="button" class="btn-remove" id="removeFile">✕</button>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
+                            📂 共享文件
+                        </button>
+                    </form>
                 </div>
             </section>
             
             <!-- 文本共享区域 -->
             <section class="text-share-section">
                 <div class="card">
-                    <h2 class="section-title">共享文本</h2>
+                    <!--h2 class="section-title">共享文本</h2-->
                     <form id="textShareForm" class="text-share-form">
-                        <div class="form-group">
-                            <textarea
-                                id="textContent"
-                                name="content"
-                                class="form-textarea"
-                                rows="10"
-                                placeholder="输入要共享的文本内容"
-                                required
-                            ></textarea>
-                        </div>
+                        <textarea
+                            id="textContent"
+                            name="content"
+                            class="form-textarea"
+                            rows="3"
+                            placeholder="输入要共享的文本内容"
+                            required
+                        ></textarea>
                         <button type="submit" class="btn btn-primary btn-full" id="shareTextBtn">
                             📝 共享文本
                         </button>
