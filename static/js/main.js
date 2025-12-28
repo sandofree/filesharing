@@ -33,7 +33,6 @@ function initLoginPage() {
 function initMainPage() {
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
-    const uploadBtn = document.getElementById('uploadBtn');
     const removeFileBtn = document.getElementById('removeFile');
     const refreshBtn = document.getElementById('refreshBtn');
     const textShareForm = document.getElementById('textShareForm');
@@ -80,18 +79,11 @@ function initMainPage() {
         uploadFile();
     });
 
-    // 刷新文件列表
-    refreshBtn.addEventListener('click', function () {
-        refreshFileList();
-    });
-
     // 文本共享表单提交
-    if (textShareForm) {
-        textShareForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            shareText();
-        });
-    }
+    textShareForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        shareText();
+    });
 
     // 加载当前共享的文本
     loadSharedText();
