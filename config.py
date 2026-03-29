@@ -15,7 +15,7 @@ class Config:
 
     # 上传文件配置
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-    MAX_CONTENT_LENGTH = 1 * 1024 * 1024 * 1024  # 最大文件大小：1GB
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 最大文件大小：100MB
 
     # 会话配置
     SESSION_TYPE = "filesystem"
