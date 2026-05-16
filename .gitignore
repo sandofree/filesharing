@@ -48,3 +48,6 @@ uploads/*
 
 # Session files
 flask_session/
+
+# Agent
+.deepseek/
