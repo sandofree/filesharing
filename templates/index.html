@@ -9,6 +9,22 @@
 </head>
 <body>
     <div class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="brand">
+                    <div class="brand-mark">📁</div>
+                    <div class="brand-text">
+                        <span class="brand-title">文件共享</span>
+                        <span class="brand-sub">快速分享，随时随地</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm" title="退出登录">
+                        ⏏ 退出
+                    </a>
+                </div>
+            </div>
+        </header>
         <!-- 主要内容区域 -->
         <main class="main-content">
             <!-- 上传区域 -->
