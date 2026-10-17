@@ -8,7 +8,7 @@
 - 📤 **文件上传** — 支持点击选择和拖拽上传，最大 100MB
 - 📥 **文件下载** — 一键下载已上传的文件，支持中文文件名
 - 🗑️ **文件管理** — 可删除不需要的文件
-- 📝 **文本共享** — 跨设备共享剪贴板文本，支持复制
+- 📝 **便签墙** — 多条文本共享，一键复制、编辑、置顶、换色、筛选，像贴便签一样方便
 - 📱 **响应式设计** — 完美适配电脑和手机屏幕
 - 🎨 **现代化界面** — 简洁美观的用户界面，流畅的动画效果
 
@@ -33,17 +33,17 @@ filesharing/
 │
 ├── templates/
 │   ├── login.html            # 登录页面
-│   └── index.html            # 主页面（文件管理 + 文本共享）
+│   └── index.html            # 主页面（文件管理 + 便签墙）
 │
 ├── static/
 │   ├── css/
-│   │   └── style.css         # 全局样式（823 行，含响应式）
+│   │   └── style.css         # 全局样式（含响应式）
 │   └── js/
-│       └── main.js           # 前端逻辑（385 行）
+│       └── main.js           # 前端逻辑
 │
 ├── uploads/                  # 文件上传存储目录（自动创建）
 ├── shared_texts/
-│   └── TEXT_SHARE_FILE.txt   # 共享文本存储文件（自动创建）
+│   └── notes.json            # 便签数据（JSON 数组，自动创建，已 gitignore）
 │
 ├── flask_session/            # 服务器端会话文件（自动创建）
 └── .venv/                    # 虚拟环境（uv sync 生成）
@@ -104,7 +104,7 @@ python flask_app.py
 
 | 方法 | 路径        | 说明               |
 | ---- | ----------- | ------------------ |
-| GET  | `/`         | 主页（文件管理页） |
+| GET  | `/`         | 主页（文件管理 + 便签墙） |
 | GET  | `/login`    | 登录页面           |
 | POST | `/login`    | 提交登录密码       |
 | GET  | `/logout`   | 退出登录           |
@@ -172,37 +172,77 @@ POST /delete/报告.pdf
 {"success": true, "message": "文件 报告.pdf 删除成功！"}
 ```
 
-### 文本共享 API
+### 便签 API
 
-| 方法   | 路径          | 说明                     |
-| ------ | ------------- | ------------------------ |
-| POST   | `/share_text` | 共享文本（覆盖写入）     |
-| GET    | `/get_text`   | 获取当前共享的文本内容   |
+| 方法 | 路径                    | 说明                                   |
+| ---- | ----------------------- | -------------------------------------- |
+| GET  | `/notes`                | 获取全部便签（置顶优先，按更新时间倒序）|
+| POST | `/notes`                | 新建便签                               |
+| POST | `/notes/<note_id>`      | 更新便签内容 / 颜色 / 置顶状态         |
+| POST | `/notes/<note_id>/delete` | 删除便签                             |
 
-#### 共享文本
+便签字段：
+
+| 字段         | 类型    | 说明                                              |
+| ------------ | ------- | ------------------------------------------------- |
+| `id`         | string  | 服务端生成的 uuid hex                             |
+| `content`    | string  | 文本内容，上限 20000 字，首尾空白会被去除         |
+| `color`      | string  | `yellow` / `green` / `blue` / `pink` / `purple`   |
+| `pinned`     | boolean | 是否置顶                                          |
+| `created_at` | string  | 创建时间（本地时间，ISO，秒级）                   |
+| `updated_at` | string  | 最后更新时间，用于排序和展示                      |
+
+#### 新建便签
 
 ```http
-POST /share_text
+POST /notes
 Content-Type: multipart/form-data
 
-content: 要共享的文本内容
+content: 要贴上的内容
+color: blue          # 可选，默认 yellow
 ```
 
 响应：
 ```json
-{"success": true, "message": "文本共享成功！"}
+{"success": true, "message": "便签已贴上", "note": {"id": "...", "content": "...", "color": "blue", "pinned": false, "created_at": "...", "updated_at": "..."}}
 ```
 
-#### 获取共享文本
+#### 获取便签列表
 
 ```http
-GET /get_text
+GET /notes
 ```
 
 响应：
 ```json
-{"success": true, "content": "共享的文本内容"}
+{"success": true, "notes": [{"id": "...", "content": "...", "color": "yellow", "pinned": true, "created_at": "...", "updated_at": "..."}]}
 ```
+
+#### 更新便签
+
+只更新提交上来的字段，未提交的字段保持不变。
+
+```http
+POST /notes/<note_id>
+Content-Type: multipart/form-data
+
+content: 新的内容      # 可选
+color: pink            # 可选
+pinned: 1              # 可选，1/true/on/yes 为真
+```
+
+#### 删除便签
+
+```http
+POST /notes/<note_id>/delete
+```
+
+响应：
+```json
+{"success": true, "message": "便签已删除"}
+```
+
+> **存储说明**：便签写入 `shared_texts/notes.json`，采用「写临时文件 + 原子替换」，并用进程内锁串行化，避免并发写入损坏数据。该文件已加入 `.gitignore`（属于本机运行数据），备份请直接拷走这个文件。
 
 ## 安全说明
 

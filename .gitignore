@@ -45,9 +45,11 @@ Thumbs.db
 # Uploaded files
 uploads/*
 !uploads/.gitkeep
+shared_texts/*.json
+!shared_texts/.gitkeep
 
 # Session files
 flask_session/
 
 # Agent
-.deepseek/
+.workbuddy/

@@ -1,13 +1,16 @@
 """
 文件共享Flask应用
 支持密码登录、文件上传、下载和删除
-支持文本共享功能
+支持多条文本共享（便签墙）
 """
 from datetime import datetime
 from flask import Flask, flash, jsonify, make_response, redirect, render_template, request, url_for, send_from_directory, session
 from flask_session import Session
+import json
 import os
 import re
+import threading
+import uuid
 from unicodedata import normalize
 from urllib.parse import quote
 
@@ -22,9 +25,91 @@ Session(app)
 # 确保上传目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# 文本共享文件
-TEXT_SHARE_FILE = os.path.join(os.path.dirname(__file__), 'shared_texts', 'TEXT_SHARE_FILE.txt')
-os.makedirs(os.path.dirname(TEXT_SHARE_FILE), exist_ok=True)
+# ============================================================
+# 便签存储（多条文本共享）
+# ============================================================
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'shared_texts')
+NOTES_FILE = os.path.join(DATA_DIR, 'notes.json')
+os.makedirs(DATA_DIR, exist_ok=True)
+
+NOTES_LOCK = threading.RLock()
+MAX_NOTE_LENGTH = 20000
+NOTE_COLORS = ('yellow', 'green', 'blue', 'pink', 'purple')
+DEFAULT_NOTE_COLOR = 'yellow'
+
+
+def _now():
+    """当前时间（本地时间，秒级 ISO 字符串）"""
+    return datetime.now().isoformat(timespec='seconds')
+
+
+def normalize_color(value):
+    """非法颜色一律回落到默认色"""
+    return value if value in NOTE_COLORS else DEFAULT_NOTE_COLOR
+
+
+def _read_notes():
+    """从磁盘读取便签列表；文件缺失或损坏时返回空列表，不让应用崩掉"""
+    if not os.path.exists(NOTES_FILE):
+        return []
+
+    try:
+        with open(NOTES_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+
+    raw = data.get('notes') if isinstance(data, dict) else data
+    if not isinstance(raw, list):
+        return []
+
+    notes = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        content = str(item.get('content', ''))
+        if not content.strip():
+            continue
+        created_at = str(item.get('created_at') or _now())
+        notes.append({
+            'id': str(item.get('id') or uuid.uuid4().hex),
+            'content': content,
+            'color': normalize_color(item.get('color')),
+            'pinned': bool(item.get('pinned', False)),
+            'created_at': created_at,
+            'updated_at': str(item.get('updated_at') or created_at),
+        })
+    return notes
+
+
+def _write_notes(notes):
+    """先写临时文件再原子替换，避免写一半崩溃损坏数据"""
+    tmp_path = NOTES_FILE + '.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump({'notes': notes}, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, NOTES_FILE)
+
+
+def get_notes():
+    """全部便签：置顶优先，其余按更新时间倒序"""
+    with NOTES_LOCK:
+        notes = _read_notes()
+    notes.sort(key=lambda n: n['updated_at'], reverse=True)
+    notes.sort(key=lambda n: n['pinned'], reverse=True)
+    return notes
+
+
+def get_note(note_id):
+    """按 id 查便签，未找到返回 None"""
+    return next((n for n in get_notes() if n['id'] == note_id), None)
+
+
+def init_notes_storage():
+    """首次运行时初始化空便签库（已存在则不动）"""
+    with NOTES_LOCK:
+        if os.path.exists(NOTES_FILE):
+            return
+        _write_notes([])
 
 
 def secure_filename(filename):
@@ -88,12 +173,9 @@ def get_files():
 
     return files
 
-def get_shared_text():
-    """获取共享文本内容"""
-    if os.path.exists(TEXT_SHARE_FILE):
-        with open(TEXT_SHARE_FILE, 'r', encoding='utf-8') as f:
-            return f.read()
-    return ''
+
+# 首次启动即完成数据初始化
+init_notes_storage()
 
 
 @app.route('/')
@@ -216,42 +298,98 @@ def list_files():
     return jsonify({'success': True, 'files': get_files()})
 
 
-@app.route('/share_text', methods=['POST'])
-def share_text():
-    """共享文本路由"""
+@app.route('/notes')
+def list_notes():
+    """便签列表API"""
     if 'logged_in' not in session:
         return jsonify({'success': False, 'message': '请先登录'}), 401
-    
-    content = request.form.get('content', '').strip()
-    
+
+    return jsonify({'success': True, 'notes': get_notes()})
+
+
+@app.route('/notes', methods=['POST'])
+def create_note():
+    """新建便签"""
+    if 'logged_in' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+
+    content = (request.form.get('content') or '').strip()
     if not content:
-        return jsonify({'success': False, 'message': '文本内容不能为空'}), 400
-    
-    # 保存文本到单个文件
-    with open(TEXT_SHARE_FILE, 'w', encoding='utf-8') as f:
-        f.write(content)
-    
-    return jsonify({
-        'success': True,
-        'message': '文本共享成功！'
-    })
+        return jsonify({'success': False, 'message': '便签内容不能为空'}), 400
+    if len(content) > MAX_NOTE_LENGTH:
+        return jsonify({'success': False, 'message': f'便签内容过长，最多 {MAX_NOTE_LENGTH} 字'}), 400
+
+    stamp = _now()
+    note = {
+        'id': uuid.uuid4().hex,
+        'content': content,
+        'color': normalize_color(request.form.get('color')),
+        'pinned': False,
+        'created_at': stamp,
+        'updated_at': stamp,
+    }
+
+    with NOTES_LOCK:
+        notes = _read_notes()
+        notes.append(note)
+        _write_notes(notes)
+
+    return jsonify({'success': True, 'message': '便签已贴上', 'note': note})
 
 
-@app.route('/get_text')
-def get_text():
-    """获取共享文本内容"""
+@app.route('/notes/<note_id>', methods=['POST'])
+def update_note(note_id):
+    """更新便签：内容 / 颜色 / 置顶，只更新提交上来的字段"""
     if 'logged_in' not in session:
         return jsonify({'success': False, 'message': '请先登录'}), 401
-    
-    content = get_shared_text()
-    return jsonify({'success': True, 'content': content})
+
+    with NOTES_LOCK:
+        notes = _read_notes()
+        target = next((n for n in notes if n['id'] == note_id), None)
+        if target is None:
+            return jsonify({'success': False, 'message': '便签不存在'}), 404
+
+        if 'content' in request.form:
+            content = (request.form.get('content') or '').strip()
+            if not content:
+                return jsonify({'success': False, 'message': '便签内容不能为空'}), 400
+            if len(content) > MAX_NOTE_LENGTH:
+                return jsonify({'success': False, 'message': f'便签内容过长，最多 {MAX_NOTE_LENGTH} 字'}), 400
+            target['content'] = content
+
+        if 'color' in request.form:
+            target['color'] = normalize_color(request.form.get('color'))
+
+        if 'pinned' in request.form:
+            target['pinned'] = (request.form.get('pinned') or '').lower() in ('1', 'true', 'on', 'yes')
+
+        target['updated_at'] = _now()
+        _write_notes(notes)
+
+    return jsonify({'success': True, 'message': '便签已更新', 'note': target})
+
+
+@app.route('/notes/<note_id>/delete', methods=['POST'])
+def delete_note(note_id):
+    """删除便签"""
+    if 'logged_in' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+
+    with NOTES_LOCK:
+        notes = _read_notes()
+        remaining = [n for n in notes if n['id'] != note_id]
+        if len(remaining) == len(notes):
+            return jsonify({'success': False, 'message': '便签不存在'}), 404
+        _write_notes(remaining)
+
+    return jsonify({'success': True, 'message': '便签已删除'})
 
 
 if __name__ == '__main__':
     print(f"文件共享服务启动中...")
     print(f"登录密码: {app.config['PASSWORD']}")
     print(f"上传目录: {app.config['UPLOAD_FOLDER']}")
-    print(f"文本共享文件: {TEXT_SHARE_FILE}")
+    print(f"文本便签文件: {NOTES_FILE}")
     print(f"最大文件大小: {app.config['MAX_CONTENT_LENGTH'] / (1024*1024):.0f} MB")
     print(f"\n访问地址: http://127.0.0.1:5000")
     print(f"按 Ctrl+C 停止服务\n")

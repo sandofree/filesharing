@@ -18,11 +18,6 @@
                         <span class="brand-sub">快速分享，随时随地</span>
                     </div>
                 </div>
-                <div class="header-actions">
-                    <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm" title="退出登录">
-                        ⏏ 退出
-                    </a>
-                </div>
             </div>
         </header>
         <!-- 主要内容区域 -->
@@ -84,28 +79,47 @@
                 </div>
             </section>
             
-            <!-- 文本共享区域 -->
-            <section class="text-share-section">
+            <!-- 便签输入区 -->
+            <section class="note-section">
                 <div class="card">
-                    <!--h2 class="section-title">共享文本</h2-->
-                    <form id="textShareForm" class="text-share-form">
+                    <div class="note-composer">
                         <textarea
-                            id="textContent"
-                            name="content"
-                            class="form-textarea"
-                            rows="3"
-                            placeholder="输入要共享的文本内容"
-                            required
+                            id="noteInput"
+                            class="note-input"
+                            rows="4"
+                            placeholder="随手写点什么，贴到便签墙上…"
                         ></textarea>
-                        <div class="button-group">
-                            <button type="button" class="btn btn-secondary" id="copyTextBtn">
-                                📋 复制文本
-                            </button>
-                            <button type="submit" class="btn btn-primary" id="shareTextBtn">
-                                📝 共享文本
+                        <div class="composer-footer">
+                            <div class="color-picker" id="colorPicker">
+                                <button type="button" class="color-swatch" data-color="yellow" aria-pressed="true" title="黄色"></button>
+                                <button type="button" class="color-swatch" data-color="green" aria-pressed="false" title="绿色"></button>
+                                <button type="button" class="color-swatch" data-color="blue" aria-pressed="false" title="蓝色"></button>
+                                <button type="button" class="color-swatch" data-color="pink" aria-pressed="false" title="粉色"></button>
+                                <button type="button" class="color-swatch" data-color="purple" aria-pressed="false" title="紫色"></button>
+                            </div>
+                            <button type="button" class="btn btn-primary" id="addNoteBtn">
+                                📌 贴便签
                             </button>
                         </div>
-                    </form>
+                        <p class="composer-hint">Ctrl / ⌘ + Enter 快速贴上</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 便签墙 -->
+            <section class="note-wall-section">
+                <div class="card">
+                    <div class="section-header">
+                        <h2 class="section-title">便签墙<span class="note-count" id="noteCount"></span></h2>
+                        <input
+                            type="search"
+                            id="noteFilter"
+                            class="form-input note-filter"
+                            placeholder="🔍 筛选便签内容"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div id="noteList" class="note-grid"></div>
                 </div>
             </section>
         </main>

@@ -4,7 +4,7 @@ A concise, practical guide for AI assistants working in this repository. Generat
 
 ## Project Overview
 
-`filesharing` (v0.5.0) is a small single-file Flask application for password-protected file and text sharing. Users log in with a single shared password, then upload/download/delete files (up to 100 MB each) and read/write a single shared text snippet. There is no database, no multi-user model, and no blueprints — all server logic lives in `flask_app.py`.
+`filesharing` (v0.5.0) is a small single-file Flask application for password-protected file and text sharing. Users log in with a single shared password, then upload/download/delete files (up to 100 MB each) and manage a wall of sticky notes (multi-item shared text). There is no database, no multi-user model, and no blueprints — all server logic lives in `flask_app.py`.
 
 ## Architecture & Data Flow
 
@@ -13,16 +13,16 @@ Browser ──HTTP──▶ flask_app.py (Flask routes)
                       │
                       ├── session (flask_session/ filesystem) ── 'logged_in' flag
                       ├── uploads/<filename>          (file storage on disk)
-                      └── shared_texts/TEXT_SHARE_FILE.txt  (single shared text)
+                      └── shared_texts/notes.json     (sticky notes array, atomic write + lock)
                       │
                       └── renders templates/*.html, serves static/{js,css}
 ```
 
-- **Entry point**: `flask_app.py:250` `if __name__ == '__main__'` → `app.run(host='0.0.0.0', port=5000, debug=True)`.
-- **Config**: `app.config.from_object(Config)` (`flask_app.py:17`); `Config` is defined in `config.py`.
+- **Entry point**: `flask_app.py` `if __name__ == '__main__'` → `app.run(host='0.0.0.0', port=5000, debug=True)`.
+- **Config**: `app.config.from_object(Config)`; `Config` is defined in `config.py`.
 - **Sessions**: server-side filesystem sessions via `flask-session` (`SESSION_TYPE="filesystem"`). Auth state is a single boolean `session['logged_in']`; there is no user identity.
-- **Storage**: files persist on disk under `UPLOAD_FOLDER` (`./uploads/`); the shared text is a single overwrite-on-write file at `shared_texts/TEXT_SHARE_FILE.txt` (`flask_app.py:26`).
-- **Frontend coupling**: templates are server-rendered with Jinja2 for the initial page; subsequent file/text operations are vanilla-JS `fetch` calls to hardcoded endpoint paths in `static/js/main.js` (no `url_for` in JS).
+- **Storage**: files persist on disk under `UPLOAD_FOLDER` (`./uploads/`); notes live in `shared_texts/notes.json` (`{"notes": [...]}`), written tmp-then-`os.replace` under `NOTES_LOCK`.
+- **Frontend coupling**: templates are server-rendered with Jinja2 for the initial page; subsequent file/note operations are vanilla-JS `fetch` calls to hardcoded endpoint paths in `static/js/main.js` (no `url_for` in JS).
 
 ### Routes
 
@@ -35,8 +35,10 @@ Browser ──HTTP──▶ flask_app.py (Flask routes)
 | `/download/<filename>` | GET | `download_file` | Stream a file |
 | `/delete/<filename>` | POST | `delete_file` | Remove a file (JSON response) |
 | `/files` | GET | `list_files` | JSON file listing |
-| `/share_text` | POST | `share_text` | Overwrite shared text (JSON response) |
-| `/get_text` | GET | `get_text` | Read shared text (JSON response) |
+| `/notes` | GET | `list_notes` | List notes, pinned first then `updated_at` desc |
+| `/notes` | POST | `create_note` | Create a note (JSON response) |
+| `/notes/<note_id>` | POST | `update_note` | Partial update: `content` / `color` / `pinned` |
+| `/notes/<note_id>/delete` | POST | `delete_note` | Remove a note (JSON response) |
 
 ### Auth model
 A shared password compared with `==` against `app.config['PASSWORD']` (`flask_app.py:113`). There are **no decorators** — each protected route repeats `if 'logged_in' not in session: ...` inline. API routes return JSON `401`; page routes redirect to `/login`.
@@ -48,10 +50,10 @@ A shared password compared with `==` against `app.config['PASSWORD']` (`flask_ap
 | `flask_app.py` | Entire server: routes, helpers, `__main__`. |
 | `config.py` | `Config` class: secrets, upload limits, session type. |
 | `templates/` | `index.html` (main page) and `login.html`. Standalone — no Jinja inheritance. |
-| `static/js/main.js` | ~386 lines vanilla JS: upload, delete, file list refresh, text share/load, drag-drop, toast, loading overlay. |
-| `static/css/style.css` | ~823 lines flat CSS with custom properties; breakpoints at 768px and 480px. |
+| `static/js/main.js` | Vanilla JS: file upload/delete/list refresh/drag-drop, sticky-note wall (create/copy/edit/pin/recolor/filter), toast, loading overlay. |
+| `static/css/style.css` | Flat CSS with custom properties; breakpoints at 768px and 480px. |
 | `uploads/` | Runtime file storage. `.gitkeep` tracked; contents gitignored. |
-| `shared_texts/` | Holds `TEXT_SHARE_FILE.txt` (seed content `sandofree`). |
+| `shared_texts/` | `notes.json` (runtime note data, gitignored) + `.gitkeep`. Created on demand at startup. |
 | `pyproject.toml` | Sole project/config file. No `[tool.*]`, no `[build-system]`, no scripts. |
 | `uv.lock` | Lockfile (rev 3). Pins Flask 3.1.2, flask-session 0.8.0. |
 
@@ -80,7 +82,9 @@ Python version: **>=3.13** (`.python-version` says `3.13`; uv manages it).
 - **API responses**: all JSON, shape `{'success': bool, 'message': str, ...}`. Errors use HTTP `400` / `401` / `404`.
 - **No error handlers** (`@app.errorhandler`) and **no try/except** around filesystem I/O — a missing file or permission error will surface as a 500.
 - **Auth checks** are repeated inline per route (no decorator). When adding a protected route, copy the `if 'logged_in' not in session:` guard.
-- **Frontend**: vanilla JS, no framework. Endpoint paths are **hardcoded strings** in `main.js` (`/upload`, `/files`, `/delete/<name>`, `/share_text`, `/get_text`). When changing a route, update both `flask_app.py` and `main.js`.
+- **Frontend**: vanilla JS, no framework. Endpoint paths are **hardcoded strings** in `main.js` (`/upload`, `/files`, `/delete/<name>`, `/notes`, `/notes/<id>`, `/notes/<id>/delete`). When changing a route, update both `flask_app.py` and `main.js`.
+- **Note colors** are a closed set (`NOTE_COLORS` in `flask_app.py`, mirrored by `NOTE_COLORS` in `main.js`). Adding a color means touching both plus the `.note[data-color="…"]` / `.color-swatch[data-color="…"]` CSS rules (light + dark).
+- **Note DOM updates** use event delegation on `#noteList` with `data-action` attributes — do not switch back to inline `onclick` with interpolated content, it needs `escapeJs` and is fragile for multi-line text.
 - **Templates**: no inheritance. `url_for` is used only for static assets and the download link inside `index.html`; login uses a native form POST.
 - **CSS**: flat hyphenated class names (`.file-item`, `.upload-area`, `.btn`, `.toast`, `.modal`, `.loading-overlay`, `.login-card`), CSS custom properties for theming. No BEM.
 - **No CSRF protection** anywhere. Forms and fetch calls rely solely on the session cookie.
@@ -96,7 +100,7 @@ Python version: **>=3.13** (`.python-version` says `3.13`; uv manages it).
   - `SESSION_TYPE = "filesystem"`, `SESSION_PERMANENT = True`
 - `pyproject.toml` — dependencies: `flask`, `flask-session` (unpinned in manifest, locked in `uv.lock`).
 - `static/js/main.js` — all client-side logic; single global `selectedFile`.
-- `shared_texts/TEXT_SHARE_FILE.txt` — single shared text buffer; overwritten on each `/share_text` POST.
+- `shared_texts/notes.json` — the note store; `{"notes": [...]}`, rewritten in full on every mutation. If it is ever corrupted (invalid JSON, not a list), `_read_notes()` silently returns `[]` and the next write wipes the file — back it up instead of hand-editing. It is gitignored, so it will not exist on a fresh clone; `init_notes_storage()` creates an empty one at import time.
 
 ## Runtime / Tooling Preferences
 
@@ -109,7 +113,7 @@ Python version: **>=3.13** (`.python-version` says `3.13`; uv manages it).
 
 - **No test suite exists.** There are no `test_*.py`, `tests/`, `conftest.py`, or pytest config in the repo.
 - **No scripts** (`scripts/`, `Makefile`, shell files).
-- Smoke-test changes by running `uv run flask_app.py` and exercising the routes manually (login → upload → list → download → delete → share_text → get_text).
+- Smoke-test changes by running `uv run flask_app.py` and exercising the routes manually (login → upload → list → download → delete → create note → update note → delete note).
 - When adding functionality, follow the existing JSON-response contract and add a route + frontend call pair together; manually verify both before declaring done.
 
 ## Known Issues to Be Aware Of
