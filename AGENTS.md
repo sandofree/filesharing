@@ -86,6 +86,8 @@ Python version: **>=3.13** (`.python-version` says `3.13`; uv manages it).
 - **Note colors** are a closed set (`NOTE_COLORS` in `flask_app.py`, mirrored by `NOTE_COLORS` in `main.js`). Adding a color means touching both plus the `.note[data-color="…"]` / `.color-swatch[data-color="…"]` CSS rules (light + dark).
 - **Note DOM updates** use event delegation on `#noteList` with `data-action` attributes — do not switch back to inline `onclick` with interpolated content, it needs `escapeJs` and is fragile for multi-line text.
 - **Templates**: no inheritance. `url_for` is used only for static assets and the download link inside `index.html`; login uses a native form POST.
+- **Mobile pager**: `<main id="mainContent">` holds exactly two panes — `#paneFiles` (left) and `#paneNotes` (right). On desktop (`min-width: 960px`) `.pane` is `display: contents`, so children fall straight into the existing grid (upload col 1, composer col 2, note wall spanning). Below 960px the panes become absolutely positioned full-width layers and `main.js` owns their `transform` + the `#mainContent` height (synced via `ResizeObserver`). Keep any new main-page section inside one of the two panes, or it will be invisible on mobile.
+- **Swipe vs. browser gesture**: the mobile pager relies on `overscroll-behavior-x: none` (in the `max-width: 959.98px` block) to stop Chrome's edge-swipe back/forward navigation from hijacking the gesture. Do not remove it.
 - **CSS**: flat hyphenated class names (`.file-item`, `.upload-area`, `.btn`, `.toast`, `.modal`, `.loading-overlay`, `.login-card`), CSS custom properties for theming. No BEM.
 - **No CSRF protection** anywhere. Forms and fetch calls rely solely on the session cookie.
 

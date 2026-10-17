@@ -437,6 +437,11 @@ body {
         grid-template-columns: 1.4fr 1fr;
         align-items: start;
     }
+
+    /* 桌面端两栏并排：pane 只是分组容器，不参与布局 */
+    .pane {
+        display: contents;
+    }
 }
 
 .card {
@@ -1324,11 +1329,6 @@ body {
         display: none;
     }
 
-    .main-content {
-        padding: 20px 16px;
-        gap: 16px;
-    }
-
     .card {
         padding: 20px 16px;
     }
@@ -1421,6 +1421,88 @@ body {
         width: 36px;
         height: 36px;
         font-size: 1.1rem;
+    }
+}
+
+/* ============================================================
+   Mobile pager
+   移动端：左「文件」右「便签」，左右滑动切换
+   ============================================================ */
+.view-switch {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.view-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 13px;
+    border: none;
+    border-radius: var(--r-full);
+    background: transparent;
+    color: var(--text-3);
+    font-family: inherit;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    letter-spacing: -.01em;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease),
+                box-shadow var(--t-fast) var(--ease);
+}
+
+.view-tab.is-active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+}
+
+.view-tab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--brand-ring);
+}
+
+@media (max-width: 959.98px) {
+    .view-switch {
+        display: inline-flex;
+    }
+
+    /* 页内左右滑动切换，禁止浏览器的横向 overscroll 手势抢走 */
+    html,
+    body {
+        overscroll-behavior-x: none;
+    }
+
+    .main-content {
+        position: relative;
+        display: block;
+        /* 覆盖 flex: 1，否则 flex-basis: 0 会让 JS 设置的高度失效 */
+        flex: 0 0 auto;
+        padding: 0;
+        min-height: 50vh;
+        overflow: hidden;
+    }
+
+    .pane {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 20px 16px 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        will-change: transform;
     }
 }
 

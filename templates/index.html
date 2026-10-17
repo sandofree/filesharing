@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>文件共享</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -18,110 +18,119 @@
                         <span class="brand-sub">快速分享，随时随地</span>
                     </div>
                 </div>
+                <!-- 移动端视图切换（桌面端隐藏） -->
+                <nav class="view-switch" id="viewSwitch" aria-label="切换文件与便签">
+                    <button type="button" class="view-tab is-active" data-view="files" aria-selected="true">📁 文件</button>
+                    <button type="button" class="view-tab" data-view="notes" aria-selected="false">📌 便签</button>
+                </nav>
             </div>
         </header>
-        <!-- 主要内容区域 -->
-        <main class="main-content">
-            <!-- 上传区域 -->
-            <section class="upload-section">
-                <div class="card">
-                    <!--h2 class="section-title">共享文件</h2-->
-                    <div id="fileList" class="file-list">
-                        {% if files %}
-                            {% for file in files %}
-                            <div class="file-item" data-filename="{{ file.name }}">
-                                <div class="file-icon">📄</div>
-                                <div class="file-info">
-                                    <div class="file-name">{{ file.name }}</div>
-                                    <div class="file-meta">
-                                        <span class="file-size">{{ file.size_str }}</span>
-                                        <span class="file-time">{{ file.mtime_str }}</span>
+        <!-- 主要内容区域：移动端左右两页，左「文件」右「便签」 -->
+        <main class="main-content" id="mainContent">
+            <div class="pane pane-files" id="paneFiles">
+                <!-- 上传区域 -->
+                <section class="upload-section">
+                    <div class="card">
+                        <!--h2 class="section-title">共享文件</h2-->
+                        <div id="fileList" class="file-list">
+                            {% if files %}
+                                {% for file in files %}
+                                <div class="file-item" data-filename="{{ file.name }}">
+                                    <div class="file-icon">📄</div>
+                                    <div class="file-info">
+                                        <div class="file-name">{{ file.name }}</div>
+                                        <div class="file-meta">
+                                            <span class="file-size">{{ file.size_str }}</span>
+                                            <span class="file-time">{{ file.mtime_str }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="file-actions">
+                                        <a href="{{ url_for('download_file', filename=file.name) }}" 
+                                           class="btn btn-download btn-sm"
+                                           title="下载">
+                                            ⬇️
+                                        </a>
+                                        <button class="btn btn-delete btn-sm"
+                                                onclick="deleteFile('{{ file.name }}')"
+                                                title="删除">
+                                            🗑️
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="file-actions">
-                                    <a href="{{ url_for('download_file', filename=file.name) }}" 
-                                       class="btn btn-download btn-sm"
-                                       title="下载">
-                                        ⬇️
-                                    </a>
-                                    <button class="btn btn-delete btn-sm"
-                                            onclick="deleteFile('{{ file.name }}')"
-                                            title="删除">
-                                        🗑️
-                                    </button>
+                                {% endfor %}
+                            {% endif %}                    
+                        </div>
+
+                        <form id="uploadForm" class="upload-form">
+                            <div class="upload-area" id="uploadArea">
+                                <input 
+                                    type="file" 
+                                    id="fileInput" 
+                                    name="file" 
+                                    class="file-input"
+                                >
+                                <div class="upload-content">
+                                    <div class="upload-icon">📤</div>
+                                    <p class="upload-hint">点击或拖拽文件到此处上传(最大100MB)</p>
                                 </div>
                             </div>
-                            {% endfor %}
-                        {% endif %}                    
-                    </div>
-
-                    <form id="uploadForm" class="upload-form">
-                        <div class="upload-area" id="uploadArea">
-                            <input 
-                                type="file" 
-                                id="fileInput" 
-                                name="file" 
-                                class="file-input"
-                            >
-                            <div class="upload-content">
-                                <div class="upload-icon">📤</div>
-                                <p class="upload-hint">点击或拖拽文件到此处上传(最大100MB)</p>
+                            <div id="selectedFile" class="selected-file" style="display: none;">
+                                <span id="fileName"></span>
+                                <button type="button" class="btn-remove" id="removeFile">✕</button>
                             </div>
-                        </div>
-                        <div id="selectedFile" class="selected-file" style="display: none;">
-                            <span id="fileName"></span>
-                            <button type="button" class="btn-remove" id="removeFile">✕</button>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
-                            📂 共享文件
-                        </button>
-                    </form>
-                </div>
-            </section>
-            
-            <!-- 便签输入区 -->
-            <section class="note-section">
-                <div class="card">
-                    <div class="note-composer">
-                        <textarea
-                            id="noteInput"
-                            class="note-input"
-                            rows="4"
-                            placeholder="随手写点什么，贴到便签墙上…"
-                        ></textarea>
-                        <div class="composer-footer">
-                            <div class="color-picker" id="colorPicker">
-                                <button type="button" class="color-swatch" data-color="yellow" aria-pressed="true" title="黄色"></button>
-                                <button type="button" class="color-swatch" data-color="green" aria-pressed="false" title="绿色"></button>
-                                <button type="button" class="color-swatch" data-color="blue" aria-pressed="false" title="蓝色"></button>
-                                <button type="button" class="color-swatch" data-color="pink" aria-pressed="false" title="粉色"></button>
-                                <button type="button" class="color-swatch" data-color="purple" aria-pressed="false" title="紫色"></button>
-                            </div>
-                            <button type="button" class="btn btn-primary" id="addNoteBtn">
-                                📌 贴便签
+                            <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
+                                📂 共享文件
                             </button>
-                        </div>
-                        <p class="composer-hint">Ctrl / ⌘ + Enter 快速贴上</p>
+                        </form>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
 
-            <!-- 便签墙 -->
-            <section class="note-wall-section">
-                <div class="card">
-                    <div class="section-header">
-                        <h2 class="section-title">便签墙<span class="note-count" id="noteCount"></span></h2>
-                        <input
-                            type="search"
-                            id="noteFilter"
-                            class="form-input note-filter"
-                            placeholder="🔍 筛选便签内容"
-                            autocomplete="off"
-                        >
+            <div class="pane pane-notes" id="paneNotes">
+                <!-- 便签输入区 -->
+                <section class="note-section">
+                    <div class="card">
+                        <div class="note-composer">
+                            <textarea
+                                id="noteInput"
+                                class="note-input"
+                                rows="4"
+                                placeholder="随手写点什么，贴到便签墙上…"
+                            ></textarea>
+                            <div class="composer-footer">
+                                <div class="color-picker" id="colorPicker">
+                                    <button type="button" class="color-swatch" data-color="yellow" aria-pressed="true" title="黄色"></button>
+                                    <button type="button" class="color-swatch" data-color="green" aria-pressed="false" title="绿色"></button>
+                                    <button type="button" class="color-swatch" data-color="blue" aria-pressed="false" title="蓝色"></button>
+                                    <button type="button" class="color-swatch" data-color="pink" aria-pressed="false" title="粉色"></button>
+                                    <button type="button" class="color-swatch" data-color="purple" aria-pressed="false" title="紫色"></button>
+                                </div>
+                                <button type="button" class="btn btn-primary" id="addNoteBtn">
+                                    📌 贴便签
+                                </button>
+                            </div>
+                            <p class="composer-hint">Ctrl / ⌘ + Enter 快速贴上</p>
+                        </div>
                     </div>
-                    <div id="noteList" class="note-grid"></div>
-                </div>
-            </section>
+                </section>
+
+                <!-- 便签墙 -->
+                <section class="note-wall-section">
+                    <div class="card">
+                        <div class="section-header">
+                            <h2 class="section-title">便签墙<span class="note-count" id="noteCount"></span></h2>
+                            <input
+                                type="search"
+                                id="noteFilter"
+                                class="form-input note-filter"
+                                placeholder="🔍 筛选便签内容"
+                                autocomplete="off"
+                            >
+                        </div>
+                        <div id="noteList" class="note-grid"></div>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 

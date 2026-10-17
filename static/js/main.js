@@ -39,6 +39,233 @@ function initLoginPage() {
 function initMainPage() {
     initFileSection();
     initNoteSection();
+    initViewSwitch();
+}
+
+/* ============================================================
+   视图切换（移动端：左文件 / 右便签，可左右滑动）
+   ============================================================ */
+const VIEW_BREAKPOINT = 960;
+const VIEW_SWIPE_FOLLOW = 'none';
+const VIEW_SWIPE_ANIMATE = 'transform .32s cubic-bezier(.16, 1, .3, 1)';
+
+let currentView = 0;          // 0 = 文件，1 = 便签
+let viewPanes = [];
+let viewSwitchEl = null;
+let mainContentEl = null;
+let dragState = null;
+
+function initViewSwitch() {
+    mainContentEl = document.getElementById('mainContent');
+    viewSwitchEl = document.getElementById('viewSwitch');
+    if (!mainContentEl || !viewSwitchEl || !viewPanesReady()) {
+        return;
+    }
+
+    viewPanes = [
+        document.getElementById('paneFiles'),
+        document.getElementById('paneNotes')
+    ];
+
+    // 顶部胶囊按钮
+    viewSwitchEl.addEventListener('click', function (e) {
+        const tab = e.target.closest('.view-tab');
+        if (!tab) {
+            return;
+        }
+        goToView(tab.dataset.view === 'notes' ? 1 : 0);
+    });
+
+    // 左右滑动手势
+    mainContentEl.addEventListener('touchstart', onViewTouchStart, { passive: true });
+    mainContentEl.addEventListener('touchmove', onViewTouchMove, { passive: true });
+    mainContentEl.addEventListener('touchend', onViewTouchEnd);
+    mainContentEl.addEventListener('touchcancel', onViewTouchEnd);
+
+    // 内容高度变化时同步容器高度（便签增减、筛选、编辑态等）
+    if (window.ResizeObserver) {
+        const observer = new ResizeObserver(syncViewHeight);
+        viewPanes.forEach(function (pane) {
+            if (pane) {
+                observer.observe(pane);
+            }
+        });
+    }
+
+    window.addEventListener('resize', onViewResize);
+
+    syncTabs();
+    layoutPanes(0, false);
+    syncViewHeight();
+}
+
+function viewPanesReady() {
+    return !!(document.getElementById('paneFiles') && document.getElementById('paneNotes'));
+}
+
+function isMobileView() {
+    return window.innerWidth < VIEW_BREAKPOINT;
+}
+
+// 把两页排到正确位置：offset 为拖动时的跟手位移
+function layoutPanes(offsetPx, animate) {
+    if (!mainContentEl || !isMobileView()) {
+        return;
+    }
+
+    const width = mainContentEl.clientWidth || window.innerWidth;
+
+    viewPanes.forEach(function (pane, index) {
+        if (!pane) {
+            return;
+        }
+        pane.style.transition = animate ? VIEW_SWIPE_ANIMATE : VIEW_SWIPE_FOLLOW;
+        pane.style.transform = 'translate3d(' + ((index - currentView) * width + offsetPx) + 'px, 0, 0)';
+    });
+}
+
+// 容器高度跟随当前页（两页绝对定位，不占文档流）
+function syncViewHeight() {
+    if (!mainContentEl) {
+        return;
+    }
+
+    if (!isMobileView()) {
+        mainContentEl.style.height = '';
+        return;
+    }
+
+    const pane = viewPanes[currentView];
+    if (pane) {
+        mainContentEl.style.height = pane.offsetHeight + 'px';
+    }
+}
+
+function goToView(index) {
+    index = Math.max(0, Math.min(viewPanes.length - 1, index));
+    const changed = index !== currentView;
+
+    currentView = index;
+    syncTabs();
+
+    if (!isMobileView()) {
+        return;
+    }
+
+    syncViewHeight();
+    layoutPanes(0, true);
+
+    // 切页后把视口带回内容顶部，避免停在旧页的中间位置
+    if (changed && window.scrollY > mainContentEl.offsetTop) {
+        window.scrollTo(0, mainContentEl.offsetTop);
+    }
+}
+
+function syncTabs() {
+    if (!viewSwitchEl) {
+        return;
+    }
+
+    viewSwitchEl.querySelectorAll('.view-tab').forEach(function (tab, index) {
+        const active = index === currentView;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+}
+
+function onViewTouchStart(e) {
+    if (!isMobileView() || e.touches.length !== 1) {
+        dragState = null;
+        return;
+    }
+
+    dragState = {
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        startTime: Date.now(),
+        axis: null,
+        dx: 0
+    };
+}
+
+function onViewTouchMove(e) {
+    if (!dragState || e.touches.length !== 1) {
+        return;
+    }
+
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    const dx = x - dragState.startX;
+    const dy = y - dragState.startY;
+
+    // 先判定手势方向，纵向滚动不干扰横向切页
+    if (!dragState.axis) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+            return;
+        }
+        dragState.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+        if (dragState.axis === 'y') {
+            dragState = null;
+            return;
+        }
+    }
+
+    // 已到边界时加阻尼
+    let shift = dx;
+    if ((currentView === 0 && dx > 0) || (currentView === 1 && dx < 0)) {
+        shift = dx * 0.3;
+    }
+
+    dragState.dx = dx;
+    layoutPanes(shift, false);
+}
+
+function onViewTouchEnd() {
+    if (!dragState) {
+        return;
+    }
+
+    const state = dragState;
+    dragState = null;
+
+    if (state.axis !== 'x') {
+        return;
+    }
+
+    const width = mainContentEl.clientWidth || window.innerWidth;
+    const threshold = Math.min(96, width * 0.2);
+    const duration = Date.now() - state.startTime;
+    // 轻扫判定：手速够快且方向明确，不必滑满阈值
+    const isFlick = duration < 220 && Math.abs(state.dx) > 40;
+
+    if (state.dx < 0 && currentView === 0 && (Math.abs(state.dx) > threshold || isFlick)) {
+        goToView(1);
+    } else if (state.dx > 0 && currentView === 1 && (Math.abs(state.dx) > threshold || isFlick)) {
+        goToView(0);
+    } else {
+        layoutPanes(0, true);
+    }
+}
+
+function onViewResize() {
+    if (!mainContentEl) {
+        return;
+    }
+
+    if (isMobileView()) {
+        layoutPanes(0, false);
+        syncViewHeight();
+        return;
+    }
+
+    // 回到桌面双栏布局，清掉分页留下的内联样式
+    viewPanes.forEach(function (pane) {
+        if (pane) {
+            pane.style.transition = '';
+            pane.style.transform = '';
+        }
+    });
+    mainContentEl.style.height = '';
 }
 
 /* ============================================================
